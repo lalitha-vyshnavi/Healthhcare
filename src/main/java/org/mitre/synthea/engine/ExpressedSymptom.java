@@ -1,8 +1,8 @@
 package org.mitre.synthea.engine;
 
 import java.io.Serializable;
+import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 public class ExpressedSymptom implements Cloneable, Serializable {
   
@@ -64,7 +64,7 @@ public class ExpressedSymptom implements Cloneable, Serializable {
      */
     public SymptomSource(String source) {
       this.source = source;
-      timeInfos = new ConcurrentHashMap<Long, ExpressedSymptom.SymptomInfo>();
+      timeInfos = new HashMap<Long, ExpressedSymptom.SymptomInfo>();
       resolved = false;
       lastUpdateTime = null;
     }
@@ -114,8 +114,9 @@ public class ExpressedSymptom implements Cloneable, Serializable {
      * Get the current value of the symptom.
      */
     public Integer getCurrentValue() {
-      if (timeInfos.containsKey(lastUpdateTime)) {
-        return timeInfos.get(lastUpdateTime).getValue();
+	  final SymptomInfo timeInfo = timeInfos.get(lastUpdateTime);
+      if (timeInfo != null) {
+        return timeInfo.getValue();
       }
       return null;
     }
@@ -134,7 +135,7 @@ public class ExpressedSymptom implements Cloneable, Serializable {
   
   public ExpressedSymptom(String name) {
     this.name = name;  
-    sources = new ConcurrentHashMap<String, SymptomSource>();
+    sources = new HashMap<String, SymptomSource>();
   }
   
   /**
@@ -165,12 +166,13 @@ public class ExpressedSymptom implements Cloneable, Serializable {
    */
   public int getSymptom() {
     int max = 0;
-    for (String module : sources.keySet()) {
-      Integer value = sources.get(module).getCurrentValue();
-      Boolean isResolved = sources.get(module).isResolved();
-      if (value != null && value.intValue() > max && !isResolved) {
-        max = value.intValue();
-      }
+    for (SymptomSource module : sources.values()) {
+      if(!module.isResolved()) {
+        Integer value = module.getCurrentValue();
+        if (value != null && value.intValue() > max) {
+          max = value.intValue();
+        }
+	  }
     }
     return max;
   }
