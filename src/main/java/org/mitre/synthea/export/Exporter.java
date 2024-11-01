@@ -109,7 +109,7 @@ public abstract class Exporter {
     private List<Mapping> flexporterMappings;
 
     public ExporterRuntimeOptions() {
-      yearsOfHistory = Integer.parseInt(Config.get("exporter.years_of_history"));
+      yearsOfHistory = Config.getAsInteger("exporter.years_of_history", 10);
     }
 
     /**
@@ -390,7 +390,8 @@ public abstract class Exporter {
       writeNewFile(outFilePath, consolidatedNotes);
     }
 
-    if (patientExporters != null && !patientExporters.isEmpty()) {
+    if (Config.getAsBoolean("exporter.custom.export", true)
+            && patientExporters != null && !patientExporters.isEmpty()) {
       for (PatientExporter patientExporter : patientExporters) {
         patientExporter.export(person, stopTime, options);
       }
@@ -503,34 +504,6 @@ public abstract class Exporter {
    */
   public static void runPostCompletionExports(Generator generator, ExporterRuntimeOptions options) {
 
-    if (Config.getAsBoolean("exporter.fhir.bulk_data")) {
-      IParser parser = FhirR4.getContext().newJsonParser();
-      parser.setPrettyPrint(false);
-      Parameters parameters = new Parameters()
-              .addParameter("inputFormat","application/fhir+ndjson");
-      File outDirectory = getOutputFolder("fhir", null);
-
-      File[] files = outDirectory.listFiles(pathname -> pathname.getName().endsWith("ndjson"));
-
-      String configHostname = Config.get("exporter.fhir.bulk_data.parameter_hostname");
-      String hostname = Strings.isNullOrEmpty(configHostname)
-              ? "http://localhost:8080/" : configHostname;
-
-      for (File file : files) {
-        parameters.addParameter(
-                new Parameters.ParametersParameterComponent().setName("input")
-                        .addPart(new Parameters.ParametersParameterComponent()
-                                .setName("type")
-                                .setValue(new StringType(file.getName().split("\\.")[0])))
-                        .addPart(new Parameters.ParametersParameterComponent()
-                                .setName("url")
-                                .setValue(new StringType(hostname + file.getName()))));
-      }
-      overwriteFile(outDirectory.toPath().resolve("parameters.json"),
-          parser.encodeResourceToString(parameters));
-    }
-
-
     if (options.deferExports) {
       ExporterRuntimeOptions nonDeferredOptions = new ExporterRuntimeOptions(options);
       nonDeferredOptions.deferExports = false;
@@ -619,7 +592,35 @@ public abstract class Exporter {
       TransitionMetrics.exportMetrics();
     }
 
-    if (postCompletionExporters != null && !postCompletionExporters.isEmpty()) {
+    if (Config.getAsBoolean("exporter.fhir.bulk_data")) {
+      IParser parser = FhirR4.getContext().newJsonParser();
+      parser.setPrettyPrint(false);
+      Parameters parameters = new Parameters()
+              .addParameter("inputFormat","application/fhir+ndjson");
+      File outDirectory = getOutputFolder("fhir", null);
+
+      File[] files = outDirectory.listFiles(pathname -> pathname.getName().endsWith("ndjson"));
+
+      String configHostname = Config.get("exporter.fhir.bulk_data.parameter_hostname");
+      String hostname = Strings.isNullOrEmpty(configHostname)
+              ? "http://localhost:8000/" : configHostname;
+
+      for (File file : files) {
+        parameters.addParameter(
+                new Parameters.ParametersParameterComponent().setName("input")
+                        .addPart(new Parameters.ParametersParameterComponent()
+                                .setName("type")
+                                .setValue(new StringType(file.getName().split("\\.")[0])))
+                        .addPart(new Parameters.ParametersParameterComponent()
+                                .setName("url")
+                                .setValue(new StringType(hostname + file.getName()))));
+      }
+      overwriteFile(outDirectory.toPath().resolve("parameters.json"),
+              parser.encodeResourceToString(parameters));
+    }
+
+    if (Config.getAsBoolean("exporter.custom.export", true)
+            && postCompletionExporters != null && !postCompletionExporters.isEmpty()) {
       for (PostCompletionExporter postCompletionExporter : postCompletionExporters) {
         postCompletionExporter.export(generator, options);
       }
